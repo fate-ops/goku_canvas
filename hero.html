@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RPG Fateland</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        border: 1px solid black;
+        border-radius: 5px;
+        background-color: #f0f0f0;
+        color: black;
+        transition: background-color 0.3s ease;
+        &:hover {
+          background-color: #e0e0e0;
+        }
+        &:active {
+          background-color: #d0d0d0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <canvas id="gameCanvas" width="400" height="400"></canvas>
+      <button id="moveUp">↑</button>
+      <div>
+        <button id="moveLeft">←</button>
+        <button id="moveDown">↓</button>
+        <button id="moveRight">→</button>
+      </div>
+    </div>
+    <script>
+      class Hero {
+        constructor(name, x, y, sprites) {
+          this.name = name;
+          this.hp = 100;
+          this.level = 1;
+          this.xp = 0;
+          this.x = x;
+          this.y = y;
+          this.width = 64;
+          this.height = 100;
+          this.sprites = sprites;
+          this.currentSprite = sprites.s;
+        }
+
+        train() {
+          this.xp += 50;
+          if (this.xp >= 100) {
+            this.level += 1;
+            this.xp = 0;
+            console.log(
+              `${this.name} is jetzt level ${this.level}, gut gemacht!`,
+            );
+          }
+        }
+
+        takeDamage(amount) {
+          this.hp -= amount;
+          if (this.hp <= 0) {
+            console.log(`${this.name} is jetzt tot! GG:(`);
+            this.hp = 0;
+          }
+        }
+
+        rest() {
+          this.hp = 100;
+        }
+
+        getStats() {
+          console.log(
+            `${this.name} hat ${this.hp} HP, ist level ${this.level} und hat ${this.xp} XP.`,
+          );
+        }
+
+        draw(ctx) {
+          if (this.currentSprite) {
+            ctx.drawImage(
+              this.currentSprite,
+              this.x,
+              this.y,
+              this.width,
+              this.height,
+            );
+          }
+        }
+
+        move(direction) {
+          switch (direction) {
+            case "up":
+              this.y -= 10;
+              this.currentSprite = this.sprites.w;
+              break;
+            case "down":
+              this.y += 10;
+              this.currentSprite = this.sprites.s;
+              break;
+            case "left":
+              this.x -= 10;
+              this.currentSprite = this.sprites.a;
+              break;
+            case "right":
+              this.x += 10;
+              this.currentSprite = this.sprites.d;
+              break;
+            default:
+              console.log("Ungültige Richtung");
+              break;
+          }
+        }
+
+        setIdle() {
+          this.currentSprite = this.sprites.s;
+        }
+      }
+
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const spritePaths = {
+        w: "Image/goku_ultra_instinct_W.png",
+        a: "Image/goku_ultra_instinct_A.png",
+        s: "Image/goku_ultra_instinct_S.png",
+        d: "Image/goku_ultra_instinct_D.png",
+      };
+
+      function loadImage(src) {
+        const image = new Image();
+        image.src = src;
+        return image;
+      }
+
+      const heroSprites = {
+        w: loadImage(spritePaths.w),
+        a: loadImage(spritePaths.a),
+        s: loadImage(spritePaths.s),
+        d: loadImage(spritePaths.d),
+      };
+
+      const hero1 = new Hero("Kakarott", 200, 200, heroSprites);
+      function updateScreen() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hero1.draw(ctx);
+        requestAnimationFrame(updateScreen);
+      }
+
+      updateScreen();
+
+      const buttonUp = document.getElementById("moveUp");
+      buttonUp.addEventListener("click", () => {
+        hero1.move("up");
+        setTimeout(() => hero1.setIdle(), 120);
+      });
+      const buttonDown = document.getElementById("moveDown");
+      buttonDown.addEventListener("click", () => {
+        hero1.move("down");
+        setTimeout(() => hero1.setIdle(), 120);
+      });
+      const buttonLeft = document.getElementById("moveLeft");
+      buttonLeft.addEventListener("click", () => {
+        hero1.move("left");
+        setTimeout(() => hero1.setIdle(), 120);
+      });
+      const buttonRight = document.getElementById("moveRight");
+      buttonRight.addEventListener("click", () => {
+        hero1.move("right");
+        setTimeout(() => hero1.setIdle(), 120);
+      });
+
+      function flashButton(button) {
+        button.style.backgroundColor = "red";
+        setTimeout(() => {
+          button.style.backgroundColor = "";
+        }, 100);
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "a" || event.key === "ArrowLeft") {
+          hero1.move("left");
+          flashButton(buttonLeft);
+        }
+        if (event.key === "d" || event.key === "ArrowRight") {
+          hero1.move("right");
+          flashButton(buttonRight);
+        }
+        if (event.key === "s" || event.key === "ArrowDown") {
+          hero1.move("down");
+          flashButton(buttonDown);
+        }
+        if (event.key === "w" || event.key === "ArrowUp") {
+          hero1.move("up");
+          flashButton(buttonUp);
+        }
+      });
+
+      window.addEventListener("keyup", (event) => {
+        if (
+          event.key === "a" ||
+          event.key === "d" ||
+          event.key === "s" ||
+          event.key === "w" ||
+          event.key === "ArrowLeft" ||
+          event.key === "ArrowRight" ||
+          event.key === "ArrowDown" ||
+          event.key === "ArrowUp"
+        ) {
+          hero1.setIdle();
+        }
+      });
+    </script>
+  </body>
+</html>
