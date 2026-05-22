@@ -35,15 +35,18 @@
   </head>
   <body>
     <div class="container">
-      <canvas id="gameCanvas" width="400" height="400"></canvas>
-      <button id="moveUp">↑</button>
+      <canvas id="gameCanvas" width="800" height="500"></canvas>
+      <button id="moveUp">W</button>
       <div>
-        <button id="moveLeft">←</button>
-        <button id="moveDown">↓</button>
-        <button id="moveRight">→</button>
+        <button id="moveLeft">A</button>
+        <button id="moveDown">S</button>
+        <button id="moveRight">D</button>
       </div>
     </div>
     <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
       class Hero {
         constructor(name, x, y, sprites) {
           this.name = name;
@@ -58,33 +61,12 @@
           this.currentSprite = sprites.s;
         }
 
-        train() {
-          this.xp += 50;
-          if (this.xp >= 100) {
-            this.level += 1;
-            this.xp = 0;
-            console.log(
-              `${this.name} is jetzt level ${this.level}, gut gemacht!`,
-            );
-          }
-        }
-
         takeDamage(amount) {
           this.hp -= amount;
           if (this.hp <= 0) {
-            console.log(`${this.name} is jetzt tot! GG:(`);
             this.hp = 0;
+            console.log(`${this.name} is now dead.`);
           }
-        }
-
-        rest() {
-          this.hp = 100;
-        }
-
-        getStats() {
-          console.log(
-            `${this.name} hat ${this.hp} HP, ist level ${this.level} und hat ${this.xp} XP.`,
-          );
         }
 
         draw(ctx) {
@@ -99,37 +81,157 @@
           }
         }
 
-        move(direction) {
-          switch (direction) {
-            case "up":
-              this.y -= 10;
-              this.currentSprite = this.sprites.w;
-              break;
-            case "down":
-              this.y += 10;
-              this.currentSprite = this.sprites.s;
-              break;
-            case "left":
-              this.x -= 10;
-              this.currentSprite = this.sprites.a;
-              break;
-            case "right":
-              this.x += 10;
-              this.currentSprite = this.sprites.d;
-              break;
-            default:
-              console.log("Ungültige Richtung");
-              break;
-          }
+        moveBy(dx, dy) {
+          this.x += dx;
+          this.y += dy;
+          this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+          this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
         }
 
         setIdle() {
           this.currentSprite = this.sprites.s;
         }
+
+        getCenter() {
+          return {
+            x: this.x + this.width / 2,
+            y: this.y + this.height / 2,
+          };
+        }
       }
 
-      const canvas = document.getElementById("gameCanvas");
-      const ctx = canvas.getContext("2d");
+      class SpiritBomb {
+        constructor(x, y, targetX, targetY, image) {
+          this.x = x;
+          this.y = y;
+          this.size = 54;
+          this.image = image;
+          this.speed = 7;
+
+          const dx = targetX - x;
+          const dy = targetY - y;
+          const distance = Math.hypot(dx, dy) || 1;
+
+          this.vx = (dx / distance) * this.speed;
+          this.vy = (dy / distance) * this.speed;
+        }
+
+        update(frameScale) {
+          this.x += this.vx * frameScale;
+          this.y += this.vy * frameScale;
+        }
+
+        draw(ctx) {
+          if (this.image.complete && this.image.naturalWidth > 0) {
+            ctx.drawImage(
+              this.image,
+              this.x - this.size / 2,
+              this.y - this.size / 2,
+              this.size,
+              this.size,
+            );
+            return;
+          }
+
+          ctx.save();
+          ctx.fillStyle = "#6fdcff";
+          ctx.shadowColor = "#9af5ff";
+          ctx.shadowBlur = 18;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        isOutside(canvas) {
+          return (
+            this.x + this.size / 2 < 0 ||
+            this.x - this.size / 2 > canvas.width ||
+            this.y + this.size / 2 < 0 ||
+            this.y - this.size / 2 > canvas.height
+          );
+        }
+      }
+
+      class Enemy {
+        constructor(x, y, speed, image) {
+          this.x = x;
+          this.y = y;
+          this.width = 52;
+          this.height = 52;
+          this.speed = speed;
+          this.image = image;
+        }
+
+        getCenter() {
+          return {
+            x: this.x + this.width / 2,
+            y: this.y + this.height / 2,
+          };
+        }
+
+        update(targetX, targetY, frameScale) {
+          const center = this.getCenter();
+          const dx = targetX - center.x;
+          const dy = targetY - center.y;
+          const distance = Math.hypot(dx, dy) || 1;
+
+          this.x += (dx / distance) * this.speed * frameScale;
+          this.y += (dy / distance) * this.speed * frameScale;
+        }
+
+        draw(ctx) {
+          if (this.image.complete && this.image.naturalWidth > 0) {
+            ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+            return;
+          }
+
+          ctx.save();
+          ctx.fillStyle = "#ff8ab7";
+          ctx.beginPath();
+          ctx.arc(
+            this.x + this.width / 2,
+            this.y + this.height / 2,
+            this.width / 2,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      class Bean {
+        constructor(x, y, type, image) {
+          this.x = x;
+          this.y = y;
+          this.width = 34;
+          this.height = 34;
+          this.type = type;
+          this.image = image;
+        }
+
+        draw(ctx) {
+          if (this.image.complete && this.image.naturalWidth > 0) {
+            ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+            return;
+          }
+
+          ctx.save();
+          ctx.fillStyle = this.type === "gold" ? "#f7d34a" : "#6ad36a";
+          ctx.beginPath();
+          ctx.arc(
+            this.x + this.width / 2,
+            this.y + this.height / 2,
+            this.width / 2,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
       const spritePaths = {
         w: "Image/goku_ultra_instinct_W.png",
         a: "Image/goku_ultra_instinct_A.png",
@@ -143,40 +245,394 @@
         return image;
       }
 
+      function circlesOverlap(ax, ay, ar, bx, by, br) {
+        return Math.hypot(ax - bx, ay - by) <= ar + br;
+      }
+
+      function rectsOverlap(a, b) {
+        return (
+          a.x < b.x + b.width &&
+          a.x + a.width > b.x &&
+          a.y < b.y + b.height &&
+          a.y + a.height > b.y
+        );
+      }
+
       const heroSprites = {
         w: loadImage(spritePaths.w),
         a: loadImage(spritePaths.a),
         s: loadImage(spritePaths.s),
         d: loadImage(spritePaths.d),
       };
+      const spiritBombImage = loadImage("Image/spirit_bomb.png");
+      const kidBuuImage = loadImage("Image/kid_buu.png");
+      const senzuBeanImage = loadImage("Image/senzu_bean.png");
+      const goldBeanImage = loadImage("Image/gold_bean.png");
 
       const hero1 = new Hero("Kakarott", 200, 200, heroSprites);
-      function updateScreen() {
+      const spiritBombs = [];
+      const enemies = [];
+      const beans = [];
+      const waveDuration = 15000;
+      const waveBreakDuration = 7000;
+      const baseSpawnInterval = 2400;
+      const movementSpeed = 4.5;
+      const maxEnemies = 90;
+      const maxFrameTime = 34;
+      const pressedKeys = new Set();
+      let wave = 1;
+      let waveStartedAt = performance.now();
+      let lastSpawnAt = performance.now();
+      let isGameOver = false;
+      let isWaveBreak = false;
+      let previousFrameAt = performance.now();
+
+      function isMovementKey(key) {
+        return (
+          key === "w" ||
+          key === "a" ||
+          key === "s" ||
+          key === "d" ||
+          key === "ArrowUp" ||
+          key === "ArrowLeft" ||
+          key === "ArrowDown" ||
+          key === "ArrowRight"
+        );
+      }
+
+      function updateHeroMovement(frameScale) {
+        if (isGameOver) {
+          hero1.setIdle();
+          return;
+        }
+
+        let moveX = 0;
+        let moveY = 0;
+
+        if (pressedKeys.has("a") || pressedKeys.has("ArrowLeft")) {
+          moveX -= 1;
+        }
+        if (pressedKeys.has("d") || pressedKeys.has("ArrowRight")) {
+          moveX += 1;
+        }
+        if (pressedKeys.has("w") || pressedKeys.has("ArrowUp")) {
+          moveY -= 1;
+        }
+        if (pressedKeys.has("s") || pressedKeys.has("ArrowDown")) {
+          moveY += 1;
+        }
+
+        if (moveX === 0 && moveY === 0) {
+          hero1.setIdle();
+          return;
+        }
+
+        const distance = Math.hypot(moveX, moveY) || 1;
+        hero1.moveBy(
+          (moveX / distance) * movementSpeed * frameScale,
+          (moveY / distance) * movementSpeed * frameScale,
+        );
+
+        if (Math.abs(moveX) > Math.abs(moveY)) {
+          hero1.currentSprite = moveX > 0 ? hero1.sprites.d : hero1.sprites.a;
+          return;
+        }
+
+        hero1.currentSprite = moveY > 0 ? hero1.sprites.s : hero1.sprites.w;
+      }
+
+      function shootSpiritBomb(targetX, targetY) {
+        if (isGameOver) {
+          return;
+        }
+
+        const heroCenter = hero1.getCenter();
+        spiritBombs.push(
+          new SpiritBomb(
+            heroCenter.x,
+            heroCenter.y,
+            targetX,
+            targetY,
+            spiritBombImage,
+          ),
+        );
+      }
+
+      function spawnBean() {
+        const type = Math.random() < 0.75 ? "senzu" : "gold";
+        const image = type === "gold" ? goldBeanImage : senzuBeanImage;
+        const beanWidth = 34;
+        const beanHeight = 34;
+        const x = Math.random() * (canvas.width - beanWidth);
+        const y = Math.random() * (canvas.height - beanHeight);
+
+        beans.push(new Bean(x, y, type, image));
+      }
+
+      function consumeBean(bean) {
+        if (bean.type === "gold") {
+          hero1.hp = 100;
+          return;
+        }
+
+        hero1.hp = Math.min(100, hero1.hp + 20);
+      }
+
+      function getWaveProgress(now) {
+        return (now - waveStartedAt) / waveDuration;
+      }
+
+      function getSpawnInterval() {
+        return Math.max(900, baseSpawnInterval - (wave - 1) * 90);
+      }
+
+      function getEnemySpeed(now) {
+        const progress = Math.min(1, getWaveProgress(now));
+        return 0.8 + wave * 0.09 + progress * 0.2;
+      }
+
+      function spawnEnemy(now) {
+        if (enemies.length >= maxEnemies) {
+          return;
+        }
+
+        const side = Math.floor(Math.random() * 4);
+        let x = 0;
+        let y = 0;
+
+        if (side === 0) {
+          x = Math.random() * (canvas.width - 52);
+          y = -52;
+        } else if (side === 1) {
+          x = canvas.width;
+          y = Math.random() * (canvas.height - 52);
+        } else if (side === 2) {
+          x = Math.random() * (canvas.width - 52);
+          y = canvas.height;
+        } else {
+          x = -52;
+          y = Math.random() * (canvas.height - 52);
+        }
+
+        enemies.push(new Enemy(x, y, getEnemySpeed(now), kidBuuImage));
+      }
+
+      function updateWave(now) {
+        if (isWaveBreak) {
+          if (now - waveStartedAt >= waveBreakDuration) {
+            isWaveBreak = false;
+            waveStartedAt = now;
+            lastSpawnAt = now;
+          }
+          return;
+        }
+
+        if (now - waveStartedAt >= waveDuration) {
+          wave += 1;
+          waveStartedAt = now;
+          isWaveBreak = true;
+          spawnBean();
+          return;
+        }
+
+        const spawnInterval = getSpawnInterval();
+        if (now - lastSpawnAt >= spawnInterval) {
+          const spawnCount = 1 + Math.floor((wave - 1) / 5);
+          for (let i = 0; i < spawnCount; i += 1) {
+            spawnEnemy(now);
+          }
+          lastSpawnAt = now;
+        }
+      }
+
+      function drawHud(now) {
+        const secondsLeft = Math.max(
+          0,
+          Math.ceil(
+            ((isWaveBreak ? waveBreakDuration : waveDuration) -
+              (now - waveStartedAt)) /
+              1000,
+          ),
+        );
+
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+        ctx.fillRect(8, 8, 190, 58);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "16px Arial";
+        ctx.fillText(`HP: ${hero1.hp}`, 18, 30);
+        ctx.fillText(`Wave: ${wave}`, 18, 50);
+        ctx.fillText(
+          isWaveBreak ? `Break: ${secondsLeft}s` : `${secondsLeft}s`,
+          95,
+          50,
+        );
+        ctx.restore();
+      }
+
+      function drawGameOver() {
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.font = "bold 28px Arial";
+        ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = "18px Arial";
+        ctx.fillText(
+          `Reached Wave ${wave}`,
+          canvas.width / 2,
+          canvas.height / 2 + 24,
+        );
+        ctx.restore();
+      }
+
+      function updateScreen(now = performance.now()) {
+        const deltaMs = Math.min(maxFrameTime, now - previousFrameAt || 16.67);
+        previousFrameAt = now;
+        const frameScale = deltaMs / 16.67;
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!isGameOver) {
+          updateWave(now);
+        }
+
+        updateHeroMovement(frameScale);
+
+        const heroCenter = hero1.getCenter();
+
+        for (let i = spiritBombs.length - 1; i >= 0; i -= 1) {
+          spiritBombs[i].update(frameScale);
+          if (spiritBombs[i].isOutside(canvas)) {
+            spiritBombs.splice(i, 1);
+          }
+        }
+
+        for (let i = enemies.length - 1; i >= 0; i -= 1) {
+          const enemy = enemies[i];
+
+          if (!isGameOver) {
+            enemy.speed = getEnemySpeed(now);
+            enemy.update(heroCenter.x, heroCenter.y, frameScale);
+          }
+
+          if (!isGameOver && rectsOverlap(enemy, hero1)) {
+            enemies.splice(i, 1);
+            hero1.takeDamage(20);
+
+            if (hero1.hp <= 0) {
+              isGameOver = true;
+            }
+          }
+        }
+
+        for (let i = beans.length - 1; i >= 0; i -= 1) {
+          if (rectsOverlap(beans[i], hero1)) {
+            consumeBean(beans[i]);
+            beans.splice(i, 1);
+          }
+        }
+
+        for (let i = spiritBombs.length - 1; i >= 0; i -= 1) {
+          const bomb = spiritBombs[i];
+
+          for (let j = enemies.length - 1; j >= 0; j -= 1) {
+            const enemy = enemies[j];
+            const enemyCenter = enemy.getCenter();
+
+            if (
+              circlesOverlap(
+                bomb.x,
+                bomb.y,
+                bomb.size / 2,
+                enemyCenter.x,
+                enemyCenter.y,
+                enemy.width / 2,
+              )
+            ) {
+              enemies.splice(j, 1);
+              spiritBombs.splice(i, 1);
+              break;
+            }
+          }
+        }
+
         hero1.draw(ctx);
+
+        for (let i = 0; i < enemies.length; i += 1) {
+          enemies[i].draw(ctx);
+        }
+
+        for (let i = 0; i < beans.length; i += 1) {
+          beans[i].draw(ctx);
+        }
+
+        for (let i = 0; i < spiritBombs.length; i += 1) {
+          spiritBombs[i].draw(ctx);
+        }
+
+        drawHud(now);
+
+        if (isGameOver) {
+          drawGameOver();
+        }
+
         requestAnimationFrame(updateScreen);
       }
 
       updateScreen();
 
+      canvas.addEventListener("pointerdown", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const targetX = (event.clientX - rect.left) * scaleX;
+        const targetY = (event.clientY - rect.top) * scaleY;
+        shootSpiritBomb(targetX, targetY);
+      });
+
       const buttonUp = document.getElementById("moveUp");
       buttonUp.addEventListener("click", () => {
-        hero1.move("up");
+        if (isGameOver) {
+          return;
+        }
+
+        hero1.moveBy(0, -12);
+        hero1.currentSprite = hero1.sprites.w;
         setTimeout(() => hero1.setIdle(), 120);
       });
+
       const buttonDown = document.getElementById("moveDown");
       buttonDown.addEventListener("click", () => {
-        hero1.move("down");
+        if (isGameOver) {
+          return;
+        }
+
+        hero1.moveBy(0, 12);
+        hero1.currentSprite = hero1.sprites.s;
         setTimeout(() => hero1.setIdle(), 120);
       });
+
       const buttonLeft = document.getElementById("moveLeft");
       buttonLeft.addEventListener("click", () => {
-        hero1.move("left");
+        if (isGameOver) {
+          return;
+        }
+
+        hero1.moveBy(-12, 0);
+        hero1.currentSprite = hero1.sprites.a;
         setTimeout(() => hero1.setIdle(), 120);
       });
+
       const buttonRight = document.getElementById("moveRight");
       buttonRight.addEventListener("click", () => {
-        hero1.move("right");
+        if (isGameOver) {
+          return;
+        }
+
+        hero1.moveBy(12, 0);
+        hero1.currentSprite = hero1.sprites.d;
         setTimeout(() => hero1.setIdle(), 120);
       });
 
@@ -188,37 +644,37 @@
       }
 
       window.addEventListener("keydown", (event) => {
+        if (isGameOver) {
+          return;
+        }
+
+        if (!isMovementKey(event.key)) {
+          return;
+        }
+
+        pressedKeys.add(event.key);
+
         if (event.key === "a" || event.key === "ArrowLeft") {
-          hero1.move("left");
           flashButton(buttonLeft);
         }
         if (event.key === "d" || event.key === "ArrowRight") {
-          hero1.move("right");
           flashButton(buttonRight);
         }
         if (event.key === "s" || event.key === "ArrowDown") {
-          hero1.move("down");
           flashButton(buttonDown);
         }
         if (event.key === "w" || event.key === "ArrowUp") {
-          hero1.move("up");
           flashButton(buttonUp);
         }
       });
 
       window.addEventListener("keyup", (event) => {
-        if (
-          event.key === "a" ||
-          event.key === "d" ||
-          event.key === "s" ||
-          event.key === "w" ||
-          event.key === "ArrowLeft" ||
-          event.key === "ArrowRight" ||
-          event.key === "ArrowDown" ||
-          event.key === "ArrowUp"
-        ) {
-          hero1.setIdle();
-        }
+        pressedKeys.delete(event.key);
+      });
+
+      window.addEventListener("blur", () => {
+        pressedKeys.clear();
+        hero1.setIdle();
       });
     </script>
   </body>
